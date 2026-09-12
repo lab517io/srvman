@@ -11,7 +11,7 @@ Originally written by [SysProgs](https://sysprogs.org/). This repository is a ma
 build of the 1.0 sources: the dead Visual Studio 2008 project has been replaced with a
 script that drives the compiler directly, the BazisLib subset it depends on is vendored,
 and the UI has gained dark/light/system theme support. Those changes are what this build
-numbers **1.1.0** — see [Versioning](#versioning-and-release-archives).
+numbers **1.3.0** — see [Versioning](#versioning-and-release-archives).
 
 ## Features
 
@@ -113,8 +113,8 @@ archives. To cut a release, bump it there and build with `--package`:
 python build.py --arch both --package
 ```
 
-That writes `dist/srvman-<version>-<arch>.zip` — currently `dist/srvman-1.1.0-x64.zip` and
-`dist/srvman-1.1.0-x86.zip` — each unpacking to a directory of the same name containing
+That writes `dist/srvman-<version>-<arch>.zip` — currently `dist/srvman-1.3.0-x64.zip` and
+`dist/srvman-1.3.0-x86.zip` — each unpacking to a directory of the same name containing
 `srvman.exe`, this README and the BazisLib licence. Debug archives are suffixed
 `-Debug` and carry the `.pdb` alongside the binary.
 

@@ -9,14 +9,14 @@
 //! command-line banner, and by build.py, which parses SRVMAN_VERSION_STR out of
 //! this file to name the release archives.
 #define SRVMAN_VERSION_MAJOR 1
-#define SRVMAN_VERSION_MINOR 2
+#define SRVMAN_VERSION_MINOR 3
 #define SRVMAN_VERSION_PATCH 0
 
 //! The same number as a string literal. It has to be spelled out rather than
 //! assembled from the three macros above: rc.exe does not concatenate adjacent
 //! string literals, so a version built with "." glue would not compile in the
 //! resource script. build.py checks the two spellings against each other.
-#define SRVMAN_VERSION_STR "1.2.0"
+#define SRVMAN_VERSION_STR "1.3.0"
 
 //! TCHAR flavour for application code. The two-step expansion matters -- the
 //! usual _T(SRVMAN_VERSION_STR) pastes L onto the macro *name*, not its value.
