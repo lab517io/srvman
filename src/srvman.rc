@@ -53,6 +53,8 @@ IDR_MENU1 MENU
 BEGIN
     POPUP "&File"
     BEGIN
+        MENUITEM "Restart as &administrator",   ID_FILE_RESTARTASADMIN
+        MENUITEM SEPARATOR
         MENUITEM "E&xit",                       IDC_EXIT
     END
     POPUP "&View"

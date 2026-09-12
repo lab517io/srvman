@@ -2,10 +2,16 @@
 #include "resource.h"
 #include <bzshlp/Win32/services.h>
 
+#include "Elevation.h"
 #include "Font.h"
 #include "Theme.h"
 
 #define BEGIN_MAP int get_something() {
+
+//! DoModal() returns this when the dialog was read-only only because srvman is not
+//! running as an administrator, and the user asked for the restart that would fix
+//! that instead of applying. The caller has to do it - see Elevation.h.
+enum { PropertiesDlgElevate = -3 };
 
 
 class CPropertiesDlg : public CUserFontDialogImpl<CPropertiesDlg>, public CDialogResize<CPropertiesDlg>
@@ -13,6 +19,9 @@ class CPropertiesDlg : public CUserFontDialogImpl<CPropertiesDlg>, public CDialo
 private:
 	BazisLib::Win32::Service *m_pService;
 	bool m_bReadOnly;
+	//! Read-only *and* fixable by elevating. False when the process is already
+	//! elevated and it is the service that will not open for writing.
+	bool m_bOfferElevation;
 	BazisLib::String m_Name;
 	CImageList m_ImageList;
 	CComboBoxEx m_cbServiceType;

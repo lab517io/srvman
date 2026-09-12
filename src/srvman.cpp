@@ -5,6 +5,7 @@
 
 #include "resource.h"
 
+#include "Elevation.h"
 #include "Font.h"
 #include "MainDlg.h"
 #include "Theme.h"
@@ -24,6 +25,7 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR /*
 	LPCWSTR lpCmdLine = GetCommandLineW();
 	int argc = 0;
 	LPWSTR *argv = CommandLineToArgvW(lpCmdLine, &argc);
+	BazisLib::String InitialSelection;
 	if ((argc > 1) && argv)
 	{
 		if (!_tcsnicmp(argv[1], _T("/RunAsService:"), 14))
@@ -32,6 +34,13 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR /*
 			LPCTSTR lpOriginalCmdLine = _tcsstr(lpCmdLine, argv[1]);
 			if (lpOriginalCmdLine)
 				return RunCommandLineAsService(lpOriginalCmdLine + _tcslen(argv[1]) + 1, lpServiceName);
+		}
+		else if (!_tcsnicmp(argv[1], _T("/select:"), 8))
+		{
+			// Not a command-line command, so it must not open a console: this is an
+			// elevated instance being told which service the instance that started it
+			// was looking at. See Elevation.h. Falls through to the dialog below.
+			InitialSelection = BazisLib::ConstString(argv[1] + 8);
 		}
 		else
 		{
@@ -72,12 +81,13 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR /*
 		// see Font.h. A fresh CMainDlg each time round: the ATL thunk is single-use.
 		do
 		{
-			CMainDlg dlgMain;
+			CMainDlg dlgMain(InitialSelection);
 			nRet = (int)dlgMain.DoModal();
 		} while (nRet == MainDlgRestart);
 	}
 
 	Theme::Shutdown();
+	Elevation::Shutdown();
 
 	_Module.Term();
 	::CoUninitialize();

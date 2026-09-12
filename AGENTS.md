@@ -54,7 +54,9 @@ Do not use `CopyFromScreen` on the whole desktop; it captures the user's other w
 
 To drive the app without a human, `PostMessage` its own command IDs:
 `WM_COMMAND` with `1001` opens Properties, `0xE140` opens About, `32804`/`32805`/`32806`
-switch the theme, `32808` resets the font. Use `PostMessage`, not `SendMessage` — these open
+switch the theme, `32808` resets the font. `32809` is Restart as administrator, which
+will put a UAC prompt on the screen — leave it alone unless that is what you are
+testing. Use `PostMessage`, not `SendMessage` — these open
 modal dialogs and would deadlock the sender. `32807` is the font chooser, which is a system
 modal dialog and cannot be driven this way; to test a font, write `FontFaceName` and
 `FontPointSize` (tenths of a point) under `HKCU\SOFTWARE\SysProgs\SrvMan` and start the app.
@@ -70,6 +72,7 @@ src/*.cpp, *.h        first-party code
 src/srvman.rc         all dialogs, the menu, version info
 src/srvman.manifest   DPI awareness; merged into the linker-generated manifest
 src/Dpi.h, Font.*     scaling and the user-selectable UI font - see below
+src/Elevation.*       UAC shields and the restart-as-administrator path - see below
 src/resource.h        control and command IDs
 src/version.h         the version number - the only place it is spelled out
 src/BazisLib/         VENDORED - see below
@@ -150,6 +153,33 @@ the dialog base units from it while instantiating the template, and every coordi
 - The preference is under **HKCU**, unlike every other setting. `m_ParamsRoot` is HKLM and
   opened for write, which no-ops unelevated (see the landmine below); a font the user
   cannot keep would be worse than none.
+
+## Elevation
+
+`src/Elevation.h` + `src/Elevation.cpp`, and `CMainDlg::EnsureElevated()`. The manifest
+stays *asInvoker*: `SC_MANAGER_ENUMERATE_SERVICE` needs no rights, so the whole list is
+readable without a prompt and only the mutating operations need the administrators
+group. A token cannot gain that group, so elevating means **starting a second process**
+through `ShellExecuteEx()`'s `runas` verb and ending the current dialog.
+
+- Every privileged handler starts with `if (!EnsureElevated()) return 0;`. False means
+  *stop*: either the user dismissed the prompt, or the dialog has already been ended.
+  The gate goes **before** any confirmation the handler shows, or the user is asked the
+  same question twice, once per process.
+- The new instance gets `"/select:<service>"` and nothing else, so `_tWinMain` has to
+  keep that argument away from the console branch — any other argument opens a console.
+  Quoted, because a service name may contain spaces.
+- **The action is deliberately not replayed.** Starting or deleting a service on the
+  strength of a click that happened in a process that no longer exists is not a
+  bargain worth making. The user re-clicks in the elevated window.
+- `CPropertiesDlg` opens read-only when the service will not open for write. It offers
+  the restart in place of *OK* only when `!Elevation::IsElevated()` — refused while
+  elevated means the DACL on the service says no, and restarting would not help.
+  `DoModal()` then returns `PropertiesDlgElevate` for `CMainDlg` to act on, since the
+  properties dialog cannot end the window it is modal to.
+- `Elevation::IsElevated()` caches. That is correct by construction here, and it is
+  also why there is no way to test the elevated UI from an unelevated session: launch
+  the built exe as administrator by hand.
 
 ## Landmines
 

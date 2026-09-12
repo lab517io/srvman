@@ -78,13 +78,14 @@
 #define ID_THEME_SYSTEM                 32806
 #define ID_FONT_CHOOSE                  32807
 #define ID_FONT_DEFAULT                 32808
+#define ID_FILE_RESTARTASADMIN          32809
 
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        218
-#define _APS_NEXT_COMMAND_VALUE         32809
+#define _APS_NEXT_COMMAND_VALUE         32810
 #define _APS_NEXT_CONTROL_VALUE         1023
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

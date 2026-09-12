@@ -89,6 +89,7 @@ LINK_MACHINE = {"x64": "X64", "x86": "X86"}
 
 SRVMAN_SOURCES = [
     "cmdline.cpp",
+    "Elevation.cpp",
     "Font.cpp",
     "MainDlg.cpp",
     "PropertiesDlg.cpp",

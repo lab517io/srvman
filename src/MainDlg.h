@@ -7,6 +7,7 @@
 #include <bzscore/Win32/registry.h>
 #include <bzshlp/Win32/services.h>
 
+#include "Elevation.h"
 #include "Font.h"
 #include "Theme.h"
 #include "version.h"
@@ -64,6 +65,10 @@ private:
 		imServiceState
 	}			  m_IconDisplayMode;
 	BazisLib::String m_RestartPendingServiceName;
+	//! Service to put the selection back on once the list has been built, or empty.
+	//! Set from /select: on the command line, which is how an elevated instance is told
+	//! what the instance that started it was looking at - see Elevation.h.
+	BazisLib::String m_InitialSelection;
 
 public:
 	enum { IDD = IDD_MAINDLG };
@@ -105,6 +110,7 @@ public:
 		COMMAND_ID_HANDLER(ID_FONT_CHOOSE,			OnFontChanged)
 		COMMAND_ID_HANDLER(ID_FONT_DEFAULT,			OnFontChanged)
 		COMMAND_ID_HANDLER(ID_HELP_OPENPROJECTPAGE,	OnOpenWebpage)
+		COMMAND_ID_HANDLER(ID_FILE_RESTARTASADMIN,	OnRestartAsAdmin)
 		NOTIFY_HANDLER(IDC_LIST1, LVN_ITEMCHANGED, OnSelChanged)
 		COMMAND_ID_HANDLER(IDC_STARTSTOP,		StartStopService)
 		COMMAND_ID_HANDLER(ID_CONTROL_START,	StartStopService)
@@ -123,7 +129,7 @@ public:
 		DLGRESIZE_CONTROL(IDC_EXIT, DLSZ_MOVE_X | DLSZ_MOVE_Y)
 	END_DLGRESIZE_MAP()
 
-	CMainDlg();
+	CMainDlg(const BazisLib::String &InitialSelection = _T(""));
 
 private:
 	void ReloadServiceList();
@@ -147,6 +153,19 @@ private:
 
 	BazisLib::ActionStatus OpenSelectedService(BazisLib::Win32::Service *pService, DWORD dwAccess = SERVICE_ALL_ACCESS, BazisLib::String *pName = NULL);
 
+	//! Internal name of the selected service, or an empty string if nothing is selected.
+	BazisLib::String GetSelectedServiceName();
+	//! Moves the selection onto a service by internal name and scrolls it into view.
+	//! Does nothing if the list has no such service - a filter may be hiding it.
+	void SelectServiceByName(LPCTSTR pszName);
+
+	//! Gate in front of everything that needs the administrators group.
+	/*! \returns true when the caller may go ahead. False means it must return without
+	             doing anything: either the user declined the UAC prompt, or an elevated
+	             instance has been started and this dialog has already been ended.
+	             See Elevation.h. */
+	bool EnsureElevated();
+
 public:
 // Handler prototypes (uncomment arguments if needed):
 //	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -169,6 +188,7 @@ public:
 	LRESULT OnSettingChange(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& /*bHandled*/);
 	LRESULT OnNcPaint(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/);
 	LRESULT OnOpenWebpage(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnRestartAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
 	LRESULT OnSelChanged(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);
 	LRESULT OnListViewDblClick(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/);

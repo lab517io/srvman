@@ -113,11 +113,42 @@ LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam
 	m_MainMenu.CheckMenuItem(ID_ICONMEANING_SERVICESTATE, (m_IconDisplayMode == imServiceState) ? MF_CHECKED : MF_UNCHECKED);
 	m_MainMenu.CheckMenuItem(ID_FONT_DEFAULT, Font::IsCustom() ? MF_UNCHECKED : MF_CHECKED);
 
+	//Everything the list shows is readable without the administrators group, but
+	//nothing can be changed - see Elevation.h. Say so in the title, and shield the
+	//buttons that will have to restart the process to do their job.
+	if (!Elevation::IsElevated())
+	{
+		TCHAR tszTitle[256] = {0,};
+		GetWindowText(tszTitle, __countof(tszTitle));
+		SetWindowText((String(tszTitle) + _T(" (read-only - not running as administrator)")).c_str());
+
+		Elevation::SetButtonShield(GetDlgItem(IDC_STARTSTOP));
+		Elevation::SetButtonShield(GetDlgItem(IDC_RESTART));
+		Elevation::SetButtonShield(GetDlgItem(IDC_ADDSERVICE));
+		Elevation::SetButtonShield(GetDlgItem(IDC_DELETESERVICE));
+		Elevation::SetMenuItemShield(m_MainMenu, ID_FILE_RESTARTASADMIN);
+	}
+	else
+	{
+		//Nothing left for it to do. It heads the File popup, followed by the separator
+		//that sets it apart from Exit (see srvman.rc), and that goes with it - which is
+		//what position 0 is once the command itself has been deleted.
+		CMenuHandle mnuFile = m_MainMenu.GetSubMenu(0);
+		if (!mnuFile.IsNull())
+		{
+			mnuFile.DeleteMenu(ID_FILE_RESTARTASADMIN, MF_BYCOMMAND);
+			mnuFile.DeleteMenu(0, MF_BYPOSITION);
+		}
+	}
+
 	ReloadServiceList();
 
 	SetTimer(0, 100);
 
 	m_ListView.SelectItem(0);
+	//An elevated instance started by EnsureElevated() was told what its predecessor
+	//was looking at; put the selection back where the user left it.
+	SelectServiceByName(m_InitialSelection.c_str());
 
 	RefreshTheme();
 
@@ -249,9 +280,10 @@ LRESULT CMainDlg::OnViewFlagsChanged( WORD /*wNotifyCode*/, WORD wID, HWND /*hWn
 	return 0;
 }
 
-CMainDlg::CMainDlg()
+CMainDlg::CMainDlg(const String &InitialSelection)
 : m_ParamsRoot(HKEY_LOCAL_MACHINE, _T("SOFTWARE\\SysProgs\\SrvMan"))
 , m_IconDisplayMode(imServiceType)
+, m_InitialSelection(InitialSelection)
 {
 }
 
@@ -554,6 +586,9 @@ LRESULT CMainDlg::OnOpenWebpage( WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWnd
 
 LRESULT CMainDlg::StartStopService( WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/ )
 {
+	if (!EnsureElevated())
+		return 0;
+
 	Service srv;
 	String srvName;
 	ActionStatus st = OpenSelectedService(&srv, SERVICE_QUERY_STATUS | SERVICE_START | SERVICE_STOP, &srvName);
@@ -633,6 +668,57 @@ ActionStatus CMainDlg::OpenSelectedService(BazisLib::Win32::Service *pService, D
 	return pService->OpenAnotherService(&mgr, tsz, dwAccess);
 }
 
+String CMainDlg::GetSelectedServiceName()
+{
+	int idx = m_ListView.GetSelectedIndex();
+	if (idx == -1)
+		return _T("");
+
+	TCHAR tsz[512];
+	if (!m_ListView.GetItemText(idx, 0, tsz, __countof(tsz)))
+		return _T("");
+	return ConstString(tsz);
+}
+
+void CMainDlg::SelectServiceByName(LPCTSTR pszName)
+{
+	if (!pszName || !*pszName)
+		return;
+
+	LVFINDINFO fi = {0,};
+	fi.flags = LVFI_STRING;		//an exact match on the item text, i.e. the internal name
+	fi.psz = pszName;
+	int idx = m_ListView.FindItem(&fi, -1);
+	if (idx != -1)
+		m_ListView.SelectItem(idx);		//also scrolls it into view
+}
+
+bool CMainDlg::EnsureElevated()
+{
+	if (Elevation::IsElevated())
+		return true;
+
+	//Quoted because a service name is allowed to contain spaces; the
+	//CommandLineToArgvW() call in _tWinMain() takes the quotes back off.
+	String args;
+	String selection = GetSelectedServiceName();
+	if (!selection.empty())
+		args = String(_T("\"/select:")) + selection + _T("\"");
+
+	if (!Elevation::Relaunch(m_hWnd, args.empty() ? NULL : args.c_str()))
+		return false;	//declined, or it could not be started; carry on as a viewer
+
+	SaveState();
+	EndDialog(0);
+	return false;
+}
+
+LRESULT CMainDlg::OnRestartAsAdmin(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+{
+	EnsureElevated();
+	return 0;
+}
+
 LRESULT CMainDlg::OnRefreshSelected( WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/ )
 {
 	ReloadServiceList();
@@ -654,7 +740,14 @@ LRESULT CMainDlg::OnBnClickedProperties(WORD /*wNotifyCode*/, WORD /*wID*/, HWND
 	}
 
 	CPropertiesDlg dlg(srvName, &srv, ReadOnly);
-	dlg.DoModal();
+	//Read-only because this process is not elevated: the dialog offered the restart in
+	//place of Apply and the user took it. Being refused while already elevated means
+	//the DACL on the service itself says no, and then the dialog offers nothing.
+	if (dlg.DoModal() == PropertiesDlgElevate)
+	{
+		EnsureElevated();
+		return 0;
+	}
 
 	ServiceControlManager mgr(SC_MANAGER_ENUMERATE_SERVICE);
 	int idx = m_ListView.GetSelectedIndex();
@@ -671,6 +764,9 @@ LRESULT CMainDlg::OnListViewDblClick( int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& bH
 
 LRESULT CMainDlg::OnBnClickedAddservice(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 {
+	if (!EnsureElevated())
+		return 0;
+
 	CPropertiesDlg dlg;
 	if (dlg.DoModal() == IDOK)
 		ReloadServiceList();
@@ -679,6 +775,11 @@ LRESULT CMainDlg::OnBnClickedAddservice(WORD /*wNotifyCode*/, WORD /*wID*/, HWND
 
 LRESULT CMainDlg::OnBnClickedDeleteservice(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 {
+	//Before the confirmation rather than after it, so the question is not asked twice -
+	//once here and again in the elevated instance.
+	if (!EnsureElevated())
+		return 0;
+
 	if (MessageBox(_T("Do you want to delete the selected service?"), _T("Question"), MB_ICONQUESTION | MB_YESNO) == IDYES)
 	{
 		Service svc;

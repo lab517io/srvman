@@ -8,6 +8,7 @@ using namespace BazisLib::Win32;
 CPropertiesDlg::CPropertiesDlg(const String &Name, Service *pService, bool ReadOnly)
 	: m_pService(pService)
 	, m_bReadOnly(ReadOnly)
+	, m_bOfferElevation(ReadOnly && !Elevation::IsElevated())
 	, m_Name(Name)
 	, m_bLastChangedPathIsRawPath(true)
 	, m_ValueChangeFlags(vcfNone)
@@ -80,7 +81,17 @@ LRESULT CPropertiesDlg::OnInitDialog( UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /
 		::EnableWindow(GetDlgItem(IDC_LOGIN), FALSE);
 		::EnableWindow(GetDlgItem(IDC_PASSWORD), FALSE);
 		::EnableWindow(GetDlgItem(IDC_DESCRIPTION), FALSE);
-		::EnableWindow(GetDlgItem(IDOK), FALSE);
+
+		if (m_bOfferElevation)
+		{
+			//The fields above stay disabled: the restart replaces the process, so there
+			//is nothing to carry an edit made here across. Apply becomes the way out of
+			//read-only rather than a dead button.
+			SetDlgItemText(IDOK, _T("Restart as administrator"));
+			Elevation::SetButtonShield(GetDlgItem(IDOK));
+		}
+		else
+			::EnableWindow(GetDlgItem(IDOK), FALSE);
 	}
 
 	if (!m_Name.empty())
@@ -201,6 +212,14 @@ String BuildCommandLineForAppAsService(LPCTSTR lpOriginalCmdLine, LPCTSTR lpServ
 
 LRESULT CPropertiesDlg::OnBnClickedOk(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 {
+	//Not Apply at all in this state - the button says "Restart as administrator", and
+	//only the caller can do that, since it owns the window this one is modal to.
+	if (m_bOfferElevation)
+	{
+		EndDialog(PropertiesDlgElevate);
+		return 0;
+	}
+
 	ServiceType st = (ServiceType)m_cbServiceType.GetCurSel();
 	StartMode sm = (StartMode)m_cbStartMode.GetCurSel();
 	if ((st != stFsDriver) && (st != stKernelDriver))

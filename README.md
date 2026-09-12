@@ -25,11 +25,15 @@ numbers **1.1.0** — see [Versioning](#versioning-and-release-archives).
   that were never written to be services.
 - **Command-line interface** for scripted installs, driver loading and service control.
 - **Dark, light and system theme** — see [Theme](#theme).
+- **Elevates on demand** — browse without a UAC prompt, and let srvman restart itself
+  as administrator the moment you ask it to change something. See
+  [Administrator rights](#administrator-rights).
 
 ## Requirements
 
 **To run:** Windows 7 or later, 32-bit or 64-bit. Most operations need administrator
-rights, since they modify the service database.
+rights, since they modify the service database — srvman asks for them when it needs
+them, see [Administrator rights](#administrator-rights).
 
 **To build:**
 
@@ -173,12 +177,34 @@ alongside the column widths and icon display mode. Note that writing there requi
 elevation — run srvman as administrator if you want the setting to persist. Reading works
 either way.
 
+## Administrator rights
+
+srvman starts unelevated. Reading the service database needs no special rights, so
+browsing, filtering and looking at service properties never produce a UAC prompt; the
+title bar says *(read-only - not running as administrator)* while that is the case, and
+the buttons that cannot work in that state carry the UAC shield.
+
+Ask for one of those — **Start**, **Stop**, **Restart**, **Add service**,
+**Delete service**, or **Restart as administrator** in place of *OK* in a read-only
+properties dialog — and srvman restarts itself elevated, because Windows cannot add
+rights to a process that is already running. The new window comes up with the same
+service selected. The action itself is not replayed: click it again, now that it will
+work. Dismissing the UAC prompt changes nothing and leaves the unelevated window up.
+
+**File → Restart as administrator** does the same thing without picking an action
+first. It is only there while srvman is unelevated.
+
+Nothing forces the restart: srvman remains usable as a viewer for as long as you like,
+and starting it from an already-elevated shell skips all of this. The window settings
+still do not persist unelevated — they live in `HKLM`, see [Theme](#theme).
+
 ## Project layout
 
 ```
 build.py              the build system
 src/                  srvman sources
   Theme.h/.cpp        dark/light/system theme support
+  Elevation.h/.cpp    UAC: shields, and restarting as administrator
   MainDlg.*           main window (service list, filter, menu)
   PropertiesDlg.*     service properties / add service dialog
   cmdline.cpp         command-line mode
